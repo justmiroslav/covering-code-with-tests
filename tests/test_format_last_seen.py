@@ -1,30 +1,12 @@
 import unittest
 from datetime import datetime
-from main import process_user_data, format_last_seen
+from main import format_last_seen
 
 
-class TestMainFunctions(unittest.TestCase):
+class TestFormatLastSeen(unittest.TestCase):
 
     def setUp(self):
-        self.sample_data = {
-            "data": [
-                {
-                    "nickname": "user1",
-                    "isOnline": True,
-                    "lastSeenDate": None
-                },
-                {
-                    "nickname": "user2",
-                    "isOnline": False,
-                    "lastSeenDate": "2023-09-25T15:30:00Z"
-                }
-            ]
-        }
         self.current_time = datetime(2023, 9, 26, 12, 30, 0)
-
-    def test_process_user_data(self):
-        processed_data = process_user_data(self.sample_data)
-        self.assertEqual({"user1": self.sample_data["data"][0], "user2": self.sample_data["data"][1]}, processed_data)
 
     def test_format_last_seen_just_now(self):
         last_seen = format_last_seen("2023-09-26T12:29:45Z", self.current_time)
