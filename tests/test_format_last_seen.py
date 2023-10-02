@@ -1,41 +1,58 @@
 import unittest
-from datetime import datetime
-from main import format_last_seen
+from datetime import datetime, timedelta
+from main import format_last_seen, translations, selected_language
 
 
 class TestFormatLastSeen(unittest.TestCase):
 
     def setUp(self):
-        self.current_time = datetime(2023, 9, 26, 12, 30, 0)
+        self.current_time = datetime.utcnow()
+        self.selected_language = selected_language
 
     def test_format_last_seen_just_now(self):
-        last_seen = format_last_seen("2023-09-26T12:29:45Z", self.current_time)
-        self.assertEqual("just now", last_seen)
+        time = self.current_time - timedelta(seconds=15)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["just_now"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_less_than_a_minute_ago(self):
-        last_seen = format_last_seen("2023-09-26T12:29:15Z", self.current_time)
-        self.assertEqual("less than a minute ago", last_seen)
+        time = self.current_time - timedelta(seconds=45)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["less_than_a_minute_ago"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_a_couple_of_minutes_ago(self):
-        last_seen = format_last_seen("2023-09-26T11:31:00Z", self.current_time)
-        self.assertEqual("a couple of minutes ago", last_seen)
+        time = self.current_time - timedelta(minutes=45)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["a_couple_of_minutes_ago"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_an_hour_ago(self):
-        last_seen = format_last_seen("2023-09-26T11:00:00Z", self.current_time)
-        self.assertEqual("an hour ago", last_seen)
+        time = self.current_time - timedelta(minutes=100)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["an_hour_ago"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_today(self):
-        last_seen = format_last_seen("2023-09-26T07:00:00Z", self.current_time)
-        self.assertEqual("today", last_seen)
+        time = self.current_time - timedelta(hours=10)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["today"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_yesterday(self):
-        last_seen = format_last_seen("2023-09-25T12:00:00Z", self.current_time)
-        self.assertEqual("yesterday", last_seen)
+        time = self.current_time - timedelta(hours=35)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["yesterday"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_this_week(self):
-        last_seen = format_last_seen("2023-09-22T12:00:00Z", self.current_time)
-        self.assertEqual("this week", last_seen)
+        time = self.current_time - timedelta(days=5)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["this_week"]
+        self.assertEqual(expected_translation, last_seen)
 
     def test_format_last_seen_a_long_time_ago(self):
-        last_seen = format_last_seen("2023-08-01T12:00:00Z", self.current_time)
-        self.assertEqual("a long time ago", last_seen)
+        time = self.current_time - timedelta(days=100)
+        last_seen = format_last_seen(time.isoformat(), self.current_time, self.selected_language)
+        expected_translation = translations[self.selected_language]["a_long_time_ago"]
+        self.assertEqual(expected_translation, last_seen)
