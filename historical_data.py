@@ -1,5 +1,6 @@
 import time
 import threading
+import re
 from fastapi import FastAPI, Query
 from last_seen import *
 
@@ -114,6 +115,46 @@ def get_user_info(date: str = Query(...), user_id: str = Query(...)):
         return {"wasUserOnline": True, "nearestOnlineTime": None}
 
 
+@app.get("/api/predictions/users")
+def predict_user_count(date: str = Query(...)):
+    input_date = datetime.strptime(date, "%Y-%m-%d-%H:%M:%S")
+    input_weekday = input_date.strftime("%A")
+
+    matching_dates = []
+    for key, value in users_count_history.items():
+        history_date = datetime.strptime(key, "%Y-%m-%d-%H:%M:%S")
+        weekday = history_date.strftime("%A")
+        if weekday == input_weekday and history_date.time() == input_date.time():
+            matching_dates.append(value["usersOnline"])
+
+    if not matching_dates:
+        return {"onlineUsers": None}
+    else:
+        return {"onlineUsers": sum(matching_dates) // len(matching_dates)}
+
+
+@app.get("/api/predictions/user")
+def predict_user_online(date: str = Query(...), tolerance: float = Query(...), user_id: str = Query(...)):
+    input_date = datetime.strptime(date, "%Y-%m-%d-%H:%M:%S")
+    input_weekday = input_date.strftime("%A")
+
+    matching_count = 0
+    total_weeks = 0
+    for key, value in user_info_history.items():
+        history_date = datetime.strptime(key, "%Y-%m-%d-%H:%M:%S")
+        weekday = history_date.strftime("%A")
+        if weekday == input_weekday and history_date.time() == input_date.time():
+            total_weeks += 1
+            if value.get(user_id) and value[user_id]["wasUserOnline"]:
+                matching_count += 1
+
+    chance = matching_count / total_weeks
+    if chance >= tolerance:
+        return {"willBeOnline": True, "onlineChance": chance}
+    else:
+        return {"willBeOnline": False, "onlineChance": chance}
+
+
 def update_in_background():
     update_user_count_periodically()
 
@@ -122,17 +163,27 @@ if __name__ == "__main__":
     while True:
         bg_thread = threading.Thread(target=update_in_background)
         bg_thread.start()
-        another_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to stop the program: "))
-        if 1 <= another_input <= 2:
+        another_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to predict users online/4 to predict whether specific user will be online/5 to stop the program: "))
+        if another_input == 5:
+            stop_event.set()
+            print("Waiting for background thread...")
+            bg_thread.join()
+            print("Stopped!")
+            break
+        elif 1 <= another_input <= 4:
             print("Current time =", current_time.strftime("%Y-%m-%d-%H:%M:%S"))
             date_input = input("Enter the date: ")
-            if another_input == 1:
+            if another_input % 2 == 1 and 1 <= another_input <= 3:
                 try:
-                    response = requests.get(f"http://localhost:8000/api/stats/users?date={date_input}")
-                    print(response.json())
+                    if another_input == 1:
+                        response = requests.get(f"http://localhost:8000/api/stats/users?date={date_input}")
+                        print(response.json())
+                    else:
+                        response = requests.get(f"http://localhost:8000/api/predictions/users?date={date_input}")
+                        print(response.json())
                 except ValueError:
                     print("Enter a data in format YYYY-MM-DD-HH:MM:SS")
-            else:
+            elif another_input % 2 == 0 and 2 <= another_input <= 4:
                 try:
                     while True:
                         username = input("Enter nickname of user you want to have info about: ")
@@ -141,15 +192,20 @@ if __name__ == "__main__":
                         else:
                             break
                     userId = userId_by_nickname[username]
-                    response = requests.get(f"http://localhost:8000/api/stats/user?date={date_input}&user_id={userId}")
-                    print(response.json())
+                    if another_input == 2:
+                        response = requests.get(f"http://localhost:8000/api/stats/user?date={date_input}&user_id={userId}")
+                        print(response.json())
+                    else:
+                        pattern = r"^0\.?\d{1,2}$"
+                        while True:
+                            tolerance_rate = input("Enter tolerance rate: ")
+                            if re.match(pattern, tolerance_rate) and 0.5 <= float(tolerance_rate) <= 0.99:
+                                break
+                            else:
+                                print("Tolerance rate must be from 0.5 to 0.99")
+                        response = requests.get(f"http://localhost:8000/api/predictions/user?date={date_input}&tolerance={float(tolerance_rate)}&user_id={userId}")
+                        print(response.json())
                 except ValueError:
                     print("Enter a data in format YYYY-MM-DD-HH:MM:SS")
-        elif another_input == 3:
-            stop_event.set()
-            print("Waiting for background thread...")
-            bg_thread.join()
-            print("Stopped!")
-            break
         else:
             print("Enter a valid command")
