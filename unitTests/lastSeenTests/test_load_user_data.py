@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import patch
-from main import load_user_data
+from last_seen import load_user_data
 
 
 class TestLoadUserData(unittest.TestCase):
 
-    @patch('main.fetch_user_data')
+    @patch('last_seen.fetch_user_data')
     def test_load_user_data(self, mock_fetch_user_data):
         mock_response_1 = {"data": [{"nickname": "user1", "isOnline": True, "lastSeenDate": None}]}
         mock_response_2 = {"data": []}

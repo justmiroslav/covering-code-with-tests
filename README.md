@@ -1,1 +1,1 @@
-Well, that went pretty well.
+For running the fastAPI, use uvicorn {filename}:app --reload command

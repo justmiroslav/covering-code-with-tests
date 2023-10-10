@@ -2,6 +2,9 @@ import requests
 from dateutil import parser
 from datetime import datetime, timedelta
 
+current_time = datetime.utcnow()
+last_seen_api_url = "https://sef.podkolzin.consulting/api/users/lastSeen"
+
 translations = {
     "en": {
         "online": "is online",
@@ -84,26 +87,27 @@ def format_last_seen(l_s_str, cur_time, language):
         return translations[language]["a_long_time_ago"]
 
 
-while True:
-    selected_language = input("en/ua: ").lower()
-    if selected_language not in translations.keys():
-        print(f"Selected language '{selected_language}' is not available. Enter another one.")
-    else:
-        break
+def print_user_data(all_users_data1, selected_language1):
+    for user, user_data in all_users_data1.items():
+        print(f"{user} = {user_data}")
+        nickname = user_data["nickname"]
+        is_online = user_data["isOnline"]
+        last_seen_str = user_data["lastSeenDate"]
 
-current_time = datetime.utcnow()
-print(current_time)
-api_url = "https://sef.podkolzin.consulting/api/users/lastSeen"
-all_users_data = load_user_data(api_url)
+        if is_online:
+            print(f"{nickname} {translations[selected_language1]['online']}.")
+        else:
+            last_seen = format_last_seen(last_seen_str, current_time, selected_language1)
+            print(f"{nickname} {translations[selected_language1]['was_online']} {last_seen}.")
 
-for user, user_data in all_users_data.items():
-    print(f"{user} = {user_data}")
-    nickname = user_data["nickname"]
-    is_online = user_data["isOnline"]
-    last_seen_str = user_data["lastSeenDate"]
 
-    if is_online:
-        print(f"{nickname} {translations[selected_language]['online']}.")
-    else:
-        last_seen = format_last_seen(last_seen_str, current_time, selected_language)
-        print(f"{nickname} {translations[selected_language]['was_online']} {last_seen}.")
+if __name__ == "__main__":
+    while True:
+        selected_language = input("en/ua: ").lower()
+        if selected_language not in translations.keys():
+            print(f"Selected language '{selected_language}' is not available. Enter another one")
+        else:
+            break
+    print("Current time =", current_time.strftime("%Y-%m-%d-%H:%M:%S"))
+    all_users_data = load_user_data(last_seen_api_url)
+    print_user_data(all_users_data, selected_language)

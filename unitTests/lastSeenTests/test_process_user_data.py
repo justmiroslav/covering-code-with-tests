@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch
 from datetime import datetime, timedelta
-from main import process_user_data
+from last_seen import process_user_data
 
 
 class TestProcessUserData(unittest.TestCase):
 
-    @patch('main.fetch_user_data')
+    @patch('last_seen.fetch_user_data')
     def test_process_user_data(self, mock_fetch_user_data):
 
         mock_response = {

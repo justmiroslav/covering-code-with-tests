@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch
 from datetime import datetime, timedelta
-from main import fetch_user_data
+from last_seen import fetch_user_data
 
 
 class TestFetchUserData(unittest.TestCase):
 
-    @patch('main.requests.get')
+    @patch('last_seen.requests.get')
     def test_fetch_user_data_success(self, mock_get):
         mock_response = {
             "data": [
@@ -24,7 +24,7 @@ class TestFetchUserData(unittest.TestCase):
 
         self.assertEqual(mock_response, result)
 
-    @patch('main.requests.get')
+    @patch('last_seen.requests.get')
     def test_fetch_user_data_failure(self, mock_get):
         mock_get.return_value.status_code = 404
 
