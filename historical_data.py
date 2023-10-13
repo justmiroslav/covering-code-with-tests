@@ -13,6 +13,13 @@ user_info_history = {}
 stop_event = threading.Event()
 
 
+def format_result(number):
+    if number.is_integer():
+        return int(number)
+    else:
+        return round(number, 1)
+
+
 def update_users_count_history(all_users):
     global last_updated_time
     online_count = sum(1 for user_data in all_users.values() if user_data["isOnline"])
@@ -81,7 +88,7 @@ def get_user_count(date: str = Query(...)):
 @app.get("/api/stats/user")
 def get_user_info(date: str = Query(...), user_id: str = Query(...)):
     if date not in user_info_history:
-        return f"No information about this user at specified date"
+        return "No information about this user at specified date"
 
     date_time = datetime.strptime(date, "%Y-%m-%d-%H:%M:%S")
     was_user_online = False
@@ -155,6 +162,59 @@ def predict_user_online(date: str = Query(...), tolerance: float = Query(...), u
         return {"willBeOnline": False, "onlineChance": chance}
 
 
+@app.get("/api/stats/user/total")
+def calculate_total_time(user_id: str = Query(...)):
+    total_time = 0
+
+    for key, value in user_info_history.items():
+        if user_id in value and value[user_id]["wasUserOnline"]:
+            total_time += 5
+
+    return {"totalTime": total_time}
+
+
+@app.get("/api/stats/user/average")
+def calculate_average_time(user_id: str = Query(...)):
+    total_time = 0
+    weekly_time = 0
+    weeks = []
+    first_day = None
+    week_day = None
+    last_day = None
+    last_week = False
+
+    for key, value in user_info_history.items():
+        if user_id in value and value[user_id]["wasUserOnline"]:
+            total_time += 5
+            weekly_time += 5
+        if first_day is None:
+            first_day = key
+            week_day = key
+        last_day = key
+
+        if (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days >= 6:
+            weeks.append(weekly_time)
+            week_day = last_day
+            weekly_time = 0
+            last_week = True
+
+        elif (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days < 6 and last_week:
+            weeks.append(weekly_time)
+
+    first_date = datetime.strptime(first_day, "%Y-%m-%d-%H:%M:%S")
+    last_date = datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S")
+    day_difference = (last_date - first_date).days
+
+    daily_average = format_result(total_time / (day_difference + 1))
+
+    if weeks:
+        weekly_average = format_result(sum(weeks) / len(weeks))
+    else:
+        weekly_average = format_result(daily_average * 7)
+
+    return {"weeklyAverage": weekly_average, "dailyAverage": daily_average}
+
+
 def update_in_background():
     update_user_count_periodically()
 
@@ -163,19 +223,14 @@ if __name__ == "__main__":
     while True:
         bg_thread = threading.Thread(target=update_in_background)
         bg_thread.start()
-        another_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to predict users online/4 to predict whether specific user will be online/5 to stop the program: "))
-        if another_input == 5:
-            stop_event.set()
-            print("Waiting for background thread...")
-            bg_thread.join()
-            print("Stopped!")
-            break
-        elif 1 <= another_input <= 4:
+        user_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to predict users online/4 to predict whether specific user will be online/\n"
+                               "5 to calculate total online time for specific user/6 to calculate average daily/weekly online time for specific user/7 to stop the program: "))
+        if 1 <= user_input <= 4:
             print("Current time =", current_time.strftime("%Y-%m-%d-%H:%M:%S"))
             date_input = input("Enter the date: ")
-            if another_input % 2 == 1 and 1 <= another_input <= 3:
+            if user_input % 2 == 1:
                 try:
-                    if another_input == 1:
+                    if user_input == 1:
                         response = requests.get(f"http://localhost:8000/api/stats/users?date={date_input}")
                         print(response.json())
                     else:
@@ -183,7 +238,7 @@ if __name__ == "__main__":
                         print(response.json())
                 except ValueError:
                     print("Enter a data in format YYYY-MM-DD-HH:MM:SS")
-            elif another_input % 2 == 0 and 2 <= another_input <= 4:
+            elif user_input % 2 == 0:
                 try:
                     while True:
                         username = input("Enter nickname of user you want to have info about: ")
@@ -192,7 +247,7 @@ if __name__ == "__main__":
                         else:
                             break
                     userId = userId_by_nickname[username]
-                    if another_input == 2:
+                    if user_input == 2:
                         response = requests.get(f"http://localhost:8000/api/stats/user?date={date_input}&user_id={userId}")
                         print(response.json())
                     else:
@@ -207,5 +262,25 @@ if __name__ == "__main__":
                         print(response.json())
                 except ValueError:
                     print("Enter a data in format YYYY-MM-DD-HH:MM:SS")
+        elif 5 <= user_input <= 6:
+            while True:
+                username = input("Enter nickname of user you want to have info about: ")
+                if username not in userId_by_nickname.keys():
+                    print("Enter a valid nickname")
+                else:
+                    break
+            userId = userId_by_nickname[username]
+            if user_input == 5:
+                response = requests.get(f"http://localhost:8000/api/stats/user/total?user_id={userId}")
+                print(response.json())
+            else:
+                response = requests.get(f"http://localhost:8000/api/stats/user/average?user_id={userId}")
+                print(response.json())
+        elif user_input == 7:
+            stop_event.set()
+            print("Waiting for background thread...")
+            bg_thread.join()
+            print("Stopped!")
+            break
         else:
             print("Enter a valid command")
