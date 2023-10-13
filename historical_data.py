@@ -10,6 +10,7 @@ last_updated_time = current_time
 userId_by_nickname = {}
 users_count_history = {}
 user_info_history = {}
+forgotten_users = []
 stop_event = threading.Event()
 
 
@@ -40,6 +41,7 @@ def update_user_count_periodically():
         if stop_event.is_set():
             break
         users_data = load_user_data(last_seen_api_url)
+        userId_by_nickname.clear()
         user_count = update_users_count_history(users_data)
         last_key = next(reversed(user_count))
         user_count_data = {f"{last_key}": dict(users_count_history[last_key])}
@@ -47,9 +49,11 @@ def update_user_count_periodically():
 
         for user, user_data in users_data.items():
             user_id = user_data["userId"]
-            nickname = user_data["nickname"]
             last_seen_date_str = user_data["lastSeenDate"]
-            userId_by_nickname[nickname] = user_id
+
+            if user_data["userId"] not in forgotten_users:
+                userId_by_nickname[user_data["nickname"]] = user_data["userId"]
+
             if user_id not in user_info_data[f"{last_key}"]:
                 if user_data["isOnline"]:
                     user_info_data[f"{last_key}"][user_id] = {
@@ -215,6 +219,25 @@ def calculate_average_time(user_id: str = Query(...)):
     return {"weeklyAverage": weekly_average, "dailyAverage": daily_average}
 
 
+@app.post("/api/user/forget")
+def forget_user(user_id: str = Query(...)):
+    for key, value in userId_by_nickname.items():
+        if user_id == value:
+            del userId_by_nickname[key]
+
+    for key, value in users_count_history.items():
+        if user_id in value:
+            del users_count_history[key][user_id]
+
+    for key, value in user_info_history.items():
+        if user_id in value:
+            del user_info_history[key][user_id]
+
+    forgotten_users.append(user_id)
+
+    return "User data has been forgotten"
+
+
 def update_in_background():
     update_user_count_periodically()
 
@@ -224,7 +247,7 @@ if __name__ == "__main__":
         bg_thread = threading.Thread(target=update_in_background)
         bg_thread.start()
         user_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to predict users online/4 to predict whether specific user will be online/\n"
-                               "5 to calculate total online time for specific user/6 to calculate average daily/weekly online time for specific user/7 to stop the program: "))
+                               "5 to calculate total online time for specific user/6 to calculate average daily/weekly online time for specific user/7 to cancel a user/8 to stop the program: "))
         if 1 <= user_input <= 4:
             print("Current time =", current_time.strftime("%Y-%m-%d-%H:%M:%S"))
             date_input = input("Enter the date: ")
@@ -262,7 +285,7 @@ if __name__ == "__main__":
                         print(response.json())
                 except ValueError:
                     print("Enter a data in format YYYY-MM-DD-HH:MM:SS")
-        elif 5 <= user_input <= 6:
+        elif 5 <= user_input <= 7:
             while True:
                 username = input("Enter nickname of user you want to have info about: ")
                 if username not in userId_by_nickname.keys():
@@ -273,10 +296,13 @@ if __name__ == "__main__":
             if user_input == 5:
                 response = requests.get(f"http://localhost:8000/api/stats/user/total?user_id={userId}")
                 print(response.json())
-            else:
+            elif user_input == 6:
                 response = requests.get(f"http://localhost:8000/api/stats/user/average?user_id={userId}")
                 print(response.json())
-        elif user_input == 7:
+            else:
+                response = requests.post(f"http://localhost:8000/api/user/forget?user_id={userId}")
+                print(response.json())
+        elif user_input == 8:
             stop_event.set()
             print("Waiting for background thread...")
             bg_thread.join()
