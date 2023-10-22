@@ -1,6 +1,7 @@
 import time
 import threading
 import re
+from itertools import combinations
 from fastapi import FastAPI, Query
 from last_seen import *
 
@@ -10,6 +11,8 @@ last_updated_time = current_time
 userId_by_nickname = {}
 users_count_history = {}
 user_info_history = {}
+template_reports = {}
+reports = {}
 forgotten_users = []
 stop_event = threading.Event()
 
@@ -178,45 +181,89 @@ def calculate_total_time(user_id: str = Query(...)):
 
 
 @app.get("/api/stats/user/average")
-def calculate_average_time(user_id: str = Query(...)):
+def calculate_average_time(user_id: str = Query(...), from_date=None, to_date=None):
     total_time = 0
+    daily_time = 0
     weekly_time = 0
+    days = []
     weeks = []
     first_day = None
+    day_day = None
     week_day = None
     last_day = None
     last_week = False
+    last_day_day = False
 
-    for key, value in user_info_history.items():
-        if user_id in value and value[user_id]["wasUserOnline"]:
-            total_time += 5
-            weekly_time += 5
-        if first_day is None:
-            first_day = key
-            week_day = key
-        last_day = key
+    if from_date and to_date:
+        from_cur_date = datetime.strptime(from_date, "%Y-%m-%d-%H:%M:%S")
+        to_cur_date = datetime.strptime(to_date, "%Y-%m-%d-%H:%M:%S")
+        for key, value in user_info_history.items():
+            while from_cur_date <= datetime.strptime(key, "%Y-%m-%d-%H:%M:%S") <= to_cur_date:
+                if user_id in value and value[user_id]["wasUserOnline"]:
+                    total_time += 5
+                    weekly_time += 5
+                    if first_day is None:
+                        first_day = key
+                        day_day = key
+                        week_day = key
+                    last_day = key
 
-        if (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days >= 6:
-            weeks.append(weekly_time)
-            week_day = last_day
-            weekly_time = 0
-            last_week = True
+                if (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(day_day, "%Y-%m-%d-%H:%M:%S")).days >= 1:
+                    if (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days >= 6:
+                        weeks.append(weekly_time)
+                        week_day = last_day
+                        weekly_time = 0
+                        last_week = True
+                    days.append(weekly_time)
+                    day_day = last_day
+                    daily_time = 0
+                    last_day_day = True
 
-        elif (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days < 6 and last_week:
-            weeks.append(weekly_time)
+                elif (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days < 6 and last_week:
+                    if (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(day_day, "%Y-%m-%d-%H:%M:%S")).days < 1 and last_day_day:
+                        days.append(daily_time)
+                    weeks.append(weekly_time)
 
-    first_date = datetime.strptime(first_day, "%Y-%m-%d-%H:%M:%S")
-    last_date = datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S")
-    day_difference = (last_date - first_date).days
+        daily_average = format_result(sum(days) / len(days))
 
-    daily_average = format_result(total_time / (day_difference + 1))
+        if weeks:
+            weekly_average = format_result(sum(weeks) / len(weeks))
+        else:
+            weekly_average = format_result(daily_average * 7)
 
-    if weeks:
-        weekly_average = format_result(sum(weeks) / len(weeks))
+        return {"dailyAverage": daily_average, "weeklyAverage": weekly_average, "total": total_time, "min": min(days), "max": max(days)}
+
     else:
-        weekly_average = format_result(daily_average * 7)
+        for key, value in user_info_history.items():
+            if user_id in value and value[user_id]["wasUserOnline"]:
+                total_time += 5
+                weekly_time += 5
+            if first_day is None:
+                first_day = key
+                week_day = key
+            last_day = key
 
-    return {"weeklyAverage": weekly_average, "dailyAverage": daily_average}
+            if (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days >= 6:
+                weeks.append(weekly_time)
+                week_day = last_day
+                weekly_time = 0
+                last_week = True
+
+            elif (datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S") - datetime.strptime(week_day, "%Y-%m-%d-%H:%M:%S")).days < 6 and last_week:
+                weeks.append(weekly_time)
+
+        first_date = datetime.strptime(first_day, "%Y-%m-%d-%H:%M:%S")
+        last_date = datetime.strptime(last_day, "%Y-%m-%d-%H:%M:%S")
+        day_difference = (last_date - first_date).days
+
+        daily_average = format_result(total_time / (day_difference + 1))
+
+        if weeks:
+            weekly_average = format_result(sum(weeks) / len(weeks))
+        else:
+            weekly_average = format_result(daily_average * 7)
+
+        return {"weeklyAverage": weekly_average, "dailyAverage": daily_average}
 
 
 @app.post("/api/user/forget")
@@ -238,6 +285,44 @@ def forget_user(user_id: str = Query(...)):
     return "User data has been forgotten"
 
 
+@app.post("/api/report")
+def configure_report(report_name: str = Query(...)):
+    if report_name not in template_reports.keys():
+        return "Report not found"
+    else:
+        reports[report_name] = template_reports[report_name]
+        return {}
+
+
+@app.get("/api/report")
+def get_report_data(report_name: str = Query(...), from_date: str = Query(...), to_date: str = Query(...)):
+    if datetime.strptime(from_date, "%Y-%m-%d-%H:%M:%S") > datetime.strptime(to_date, "%Y-%m-%d-%H:%M:%S"):
+        return "start date must be earlier than end date"
+    if datetime.strptime(next(iter(user_info_history)), "%Y-%m-%d-%H:%M:%S") > datetime.strptime(from_date, "%Y-%m-%d-%H:%M:%S") or datetime.strptime(next(reversed(user_info_history)), "%Y-%m-%d-%H:%M:%S") < datetime.strptime(to_date, "%Y-%m-%d-%H:%M:%S"):
+        return "specified date is not present in data dict"
+
+    report_metrics = reports[report_name]["metrics"]
+    result = []
+    for user_id in reports[report_name]["users"]:
+        user_data = {"userId": user_id, "metrics": []}
+        metrics = calculate_average_time(user_id, from_date, to_date)
+        for metric in report_metrics:
+            if metric == "dailyAverage":
+                user_data["metrics"].append({metric: metrics["dailyAverage"]})
+            elif metric == "weeklyAverage":
+                user_data["metrics"].append({metric: metrics["weeklyAverage"]})
+            elif metric == "total":
+                user_data["metrics"].append({metric: metrics["total"]})
+            elif metric == "min":
+                user_data["metrics"].append({metric: metrics["min"]})
+            elif metric == "max":
+                user_data["metrics"].append({metric: metrics["max"]})
+
+        result.append(user_data)
+
+    return result
+
+
 def update_in_background():
     update_user_count_periodically()
 
@@ -246,8 +331,8 @@ if __name__ == "__main__":
     while True:
         bg_thread = threading.Thread(target=update_in_background)
         bg_thread.start()
-        user_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to predict users online/4 to predict whether specific user will be online/\n"
-                               "5 to calculate total online time for specific user/6 to calculate average daily/weekly online time for specific user/7 to cancel a user/8 to stop the program: "))
+        user_input = int(input("Enter 1 to print users online/2 to print info about specific user/3 to predict users online/4 to predict whether user is online/5 to calculate total online time\n"
+                               "6 to calculate average online time/7 to cancel a user/8 to configure a report/9 to retrieve a report/10 to stop the program: "))
         if 1 <= user_input <= 4:
             print("Current time =", current_time.strftime("%Y-%m-%d-%H:%M:%S"))
             date_input = input("Enter the date: ")
@@ -302,7 +387,40 @@ if __name__ == "__main__":
             else:
                 response = requests.post(f"http://localhost:8000/api/user/forget?user_id={userId}")
                 print(response.json())
-        elif user_input == 8:
+        elif 8 <= user_input <= 9:
+            available_metrics = ["dailyAverage", "weeklyAverage", "total", "min", "max"]
+            for i in range(1, len(available_metrics) + 1):
+                for metric_combination in combinations(available_metrics, i):
+                    name_report = "_".join(metric_combination)
+                    cur_report = {"metrics": list(metric_combination), "users": list(userId_by_nickname.values())}
+                    template_reports[name_report] = cur_report
+            if user_input == 8:
+                while True:
+                    report_input = input("Enter the report you want to have: ")
+                    if report_input not in template_reports.keys():
+                        print("Enter a valid report name")
+                    else:
+                        break
+                response = requests.post(f"http://localhost:8000/api/report?report_name={report_input}")
+                print(response.json())
+            else:
+                if not reports:
+                    print("Before getting a report, you need to configure some of them")
+                else:
+                    while True:
+                        report_input = input("Enter the report you want to have: ")
+                        if report_input not in reports.keys():
+                            print("Enter a valid report name")
+                        else:
+                            break
+                    from_date_input = input("Enter a start date of your report")
+                    to_date_input = input("Enter an end date of your report")
+                    try:
+                        response = requests.get(f"http://localhost:8000/api/report?report_name={report_input}&from_date={from_date_input}&to_date={to_date_input}")
+                        print(response.json())
+                    except ValueError:
+                        print("Enter a data in format YYYY-MM-DD-HH:MM:SS")
+        elif user_input == 10:
             stop_event.set()
             print("Waiting for background thread...")
             bg_thread.join()
