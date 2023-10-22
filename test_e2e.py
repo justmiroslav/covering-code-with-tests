@@ -2,9 +2,13 @@ import unittest
 import last_seen
 import historical_data
 from datetime import datetime
+from fastapi.testclient import TestClient
+from historical_data import app
 
 
 class TestSystem(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
 
     def test_load_user_data(self):
         all_users_data = last_seen.load_user_data(last_seen.last_seen_api_url)
@@ -19,9 +23,8 @@ class TestSystem(unittest.TestCase):
 
     def test_update_user_count_history(self):
         all_users_data = {
-            "user1": {"userId": "1", "isOnline": True},
-            "user2": {"userId": "2", "isOnline": False},
-            "user3": {"userId": "3", "isOnline": True}
+            "user1": {"isOnline": True, "lastSeenDate": None},
+            "user2": {"isOnline": True, "lastSeenDate": None}
         }
 
         user_count_data = historical_data.update_users_count_history(all_users_data)
@@ -31,25 +34,57 @@ class TestSystem(unittest.TestCase):
         self.assertEqual(2, user_count_data[last_updated_time]["usersOnline"])
 
     def test_update_user_info_history(self):
-
         all_users_data = {
-            "user1": {"userId": "1", "isOnline": True, "lastSeenDate": "2023-02-15T12:00:00Z"},
-            "user2": {"userId": "2", "isOnline": False, "lastSeenDate": "2023-02-14T15:00:00Z"},
-            "user3": {"userId": "3", "isOnline": True, "lastSeenDate": "2023-02-15T12:00:00Z"}
+            "user1": {"isOnline": True, "lastSeenDate": None},
+            "user2": {"isOnline": True, "lastSeenDate": None}
         }
 
         last_updated_time = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
         user_info_data = {last_updated_time: {}}
 
         for user, user_data in all_users_data.items():
-            user_id = user_data["userId"]
-            user_info_data[last_updated_time][user_id] = {
+            user_info_data[last_updated_time][user] = {
                 "wasUserOnline": user_data["isOnline"],
                 "nearestOnlineTime": user_data["lastSeenDate"]
             }
 
         self.assertEqual(1, len(user_info_data))
-        self.assertEqual(3, len(user_info_data[last_updated_time]))
-        self.assertEqual(True, user_info_data[last_updated_time]["1"]["wasUserOnline"])
-        self.assertEqual(False, user_info_data[last_updated_time]["2"]["wasUserOnline"])
-        self.assertEqual(True, user_info_data[last_updated_time]["3"]["wasUserOnline"])
+        self.assertEqual(2, len(user_info_data[last_updated_time]))
+        self.assertEqual(True, user_info_data[last_updated_time]["user1"]["wasUserOnline"])
+        self.assertEqual(True, user_info_data[last_updated_time]["user2"]["wasUserOnline"])
+
+    def test_historical_data(self):
+        user_count_data = {"2023-10-10-10:00:00": {"usersOnline": 2}, "2023-10-15-10:00:00": {"usersOnline": 1}}
+        user_info_data = {"2023-10-10-10:00:00": {"user1": {"wasUserOnline": True, "lastSeenDate": None}, "user2": {"wasUserOnline": True, "lastSeenDate": None}},
+                          "2023-10-15-10:00:00": {"user1": {"wasUserOnline": False, "lastSeenDate": "2023-10-12-10:00:00", "user2": {"wasUserOnline": True, "lastSeenDate": None}}}}
+
+        self.client.post("/api/update_count", json=user_count_data)
+        self.client.post("/api/update_info", json=user_info_data)
+
+        response = self.client.get("/api/stats/users?date=2023-10-10-10:00:00")
+        self.assertEqual({"usersOnline": 2}, response.json())
+
+        response = self.client.get("/api/stats/user?date=2023-10-10-10:00:00&user_id=user1")
+        self.assertEqual({"wasUserOnline": True, "nearestOnlineTime": None}, response.json())
+
+        response = self.client.get("/api/predictions/users?date=2023-10-17-10:00:00")
+        self.assertEqual({"onlineUsers": 2}, response.json())
+
+        response = self.client.get("/api/predictions/user?date=2023-10-17-10:00:00&tolerance=0.5&user_id=user1")
+        self.assertEqual({"willBeOnline": True, "onlineChance": 1.0}, response.json())
+
+        response = self.client.get("/api/stats/user/total?user_id=user1")
+        self.assertEqual({"totalTime": 5}, response.json())
+
+        response = self.client.get("/api/stats/user/average?user_id=user1")
+        self.assertEqual({"weeklyAverage": 5.6, "dailyAverage": 0.8}, response.json())
+
+        response = self.client.post("/api/user/forget?user_id=user1")
+        self.assertEqual("User data has been forgotten", response.json())
+
+        response = self.client.post("/api/report?report_name=custom_report")
+        self.assertEqual({}, response.json())
+
+        response = self.client.get("/api/report?report_name=custom_report&from_date=2023-10-10-10:00:00&to_date=2023-10-14-10:00:00")
+        self.assertEqual([{"userId": "user1", "metrics": [{"dailyAverage": 5/6, "weeklyAverage": 5}]},
+                          {"userId": "user2", "metrics": [{"dailyAverage": 10/6, "weeklyAverage": 10}]}], response.json())
