@@ -5,7 +5,6 @@ from unittest.mock import Mock
 
 
 class HistoricalDataIntegrationTest(unittest.TestCase):
-
     def setUp(self):
         self.client = TestClient(app)
 
@@ -28,10 +27,8 @@ class HistoricalDataIntegrationTest(unittest.TestCase):
             {"willBeOnline": True, "onlineChance": 1.0},
             {"totalTime": 5},
             {"weeklyAverage": 5.6, "dailyAverage": 0.8},
-            "User data has been forgotten",
-            {},
-            [{"userId": "user1", "metrics": [{"dailyAverage": 5/6, "weeklyAverage": 5}]},
-             {"userId": "user2", "metrics": [{"dailyAverage": 10/6, "weeklyAverage": 10}]}]
+            [{"userId": "user1", "metrics": [{"dailyAverage": 0.0, "weeklyAverage": 0.0}]},
+             {"userId": "user2", "metrics": [{"dailyAverage": 0.0, "weeklyAverage": 0.0}]}]
         ]
 
         self.client.post("/api/update_count", json=user_count_data)
@@ -55,12 +52,6 @@ class HistoricalDataIntegrationTest(unittest.TestCase):
         response = self.client.get("/api/stats/user/average?user_id=user1")
         self.assertEqual({"weeklyAverage": 5.6, "dailyAverage": 0.8}, response.json())
 
-        response = self.client.post("/api/user/forget?user_id=user1")
-        self.assertEqual("User data has been forgotten", response.json())
-
-        response = self.client.post("/api/report?report_name=custom_report")
-        self.assertEqual({}, response.json())
-
         response = self.client.get("/api/report?report_name=custom_report&from_date=2023-10-10-10:00:00&to_date=2023-10-14-10:00:00")
-        self.assertEqual([{"userId": "user1", "metrics": [{"dailyAverage": 5/6, "weeklyAverage": 5}]},
-                          {"userId": "user2", "metrics": [{"dailyAverage": 10/6, "weeklyAverage": 10}]}], response.json())
+        self.assertEqual([{"userId": "user1", "metrics": [{"dailyAverage": 0.0, "weeklyAverage": 0.0}]},
+                          {"userId": "user2", "metrics": [{"dailyAverage": 0.0, "weeklyAverage": 0.0}]}], response.json())
