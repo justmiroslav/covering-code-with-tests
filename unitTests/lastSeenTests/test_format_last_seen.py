@@ -4,7 +4,6 @@ from last_seen import format_last_seen, translations
 
 
 class TestFormatLastSeen(unittest.TestCase):
-
     def setUp(self):
         self.current_time = datetime.utcnow()
         self.languages = ["ua", "en"]
