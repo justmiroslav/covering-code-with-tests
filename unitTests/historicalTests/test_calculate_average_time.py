@@ -11,7 +11,6 @@ class TestCalculateAverageTime(unittest.TestCase):
         "2023-10-13-13:00:00": {"user1": {"wasUserOnline": True}},
         "2023-10-14-12:00:00": {"user1": {"wasUserOnline": True}},
     })
-    @patch("historical_data.userIds", ["user1"])
     def test_calculate_average_time_less_than_week(self):
         user_id = "user1"
         result = calculate_average_time(user_id)
@@ -25,7 +24,6 @@ class TestCalculateAverageTime(unittest.TestCase):
         "2023-10-20-12:00:00": {"user1": {"wasUserOnline": True}},
         "2023-10-20-13:00:00": {"user1": {"wasUserOnline": True}},
     })
-    @patch("historical_data.userIds", ["user1"])
     def test_calculate_average_time_more_than_week(self):
         user_id = "user1"
         result = calculate_average_time(user_id)
