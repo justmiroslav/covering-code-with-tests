@@ -6,11 +6,10 @@ from fastapi import FastAPI, Query
 from last_seen import *
 
 app = FastAPI(title="Historical_Data")
-current_time = datetime.utcnow()
 last_updated_time = current_time
 users_count_history = {}
 user_info_history = {}
-userIds = []
+user_Ids = []
 forgotten_users = []
 template_reports = {}
 reports = {}
@@ -53,7 +52,7 @@ def update_user_count_periodically():
             user_id = user_data["userId"]
             last_seen_date_str = user_data["lastSeenDate"]
             if user_id not in forgotten_users:
-                userIds.append(user_id)
+                user_Ids.append(user_id)
                 if user_id not in user_info_data[f"{last_key}"]:
                     if user_data["isOnline"]:
                         user_info_data[f"{last_key}"][user_id] = {
@@ -98,23 +97,12 @@ def configure_report(report_name: str = Query(...)):
     for i in range(1, len(available_metrics) + 1):
         for metric_combination in combinations(available_metrics, i):
             name_report = "_".join(metric_combination)
-            cur_report = {"metrics": list(metric_combination), "users": userIds}
+            cur_report = {"metrics": list(metric_combination), "users": user_Ids}
             template_reports[name_report] = cur_report
     if report_name not in template_reports.keys():
         return "Report not found"
     reports[report_name] = template_reports[report_name]
     return {}
-
-
-@app.get("/")
-def get_endpoints_info():
-    return {
-        "User IDs": ["fe2c6cb3-296f-d4a9-16dc-a2c3500b1d98", "e13412b2-fe46-7149-6593-e47043f39c91",
-                     "e9aee328-f08a-28e0-ac15-c6227152fa91"],
-        "Dates": "Enter them in format %Y-%m-%d-%H:M:S",
-        "Report Names": ["total_min", "total_min", "dailyAverage_weeklyAverage"],
-        "Tolerances": [0.5, 0.6, 0.7, 0.8, 0.9],
-    }
 
 
 @app.get("/api/stats/users")
