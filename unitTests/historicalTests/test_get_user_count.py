@@ -14,4 +14,4 @@ class TestGetUserCount(unittest.TestCase):
     def test_get_user_count_invalid_date(self):
         date = "2023-10-10-11:00:00"
         result = get_user_count(date)
-        self.assertEqual("No information about users at specified date", result)
+        self.assertEqual({'usersOnline': None}, result)
