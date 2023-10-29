@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from historical_data import forget_user, users_count_history, user_info_history, user_Ids
+from historical_data import forget_user, users_count_history, user_info_history, user_ids
 
 
 class TestForgetUser(unittest.TestCase):
@@ -12,4 +12,4 @@ class TestForgetUser(unittest.TestCase):
         self.assertEqual(response, "User data has been forgotten")
         self.assertNotIn("user1", users_count_history)
         self.assertNotIn("user1", user_info_history)
-        self.assertNotIn("user1", user_Ids)
+        self.assertNotIn("user1", user_ids)

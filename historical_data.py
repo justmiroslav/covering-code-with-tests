@@ -5,11 +5,11 @@ from itertools import combinations
 from fastapi import FastAPI, Query
 from last_seen import *
 
-app = FastAPI(title="Historical_Data")
+app = FastAPI(title="Historical Data")
 last_updated_time = current_time
 users_count_history = {}
 user_info_history = {}
-user_Ids = []
+user_ids = []
 forgotten_users = []
 template_reports = {}
 reports = {}
@@ -52,7 +52,7 @@ def update_user_count_periodically():
             user_id = user_data["userId"]
             last_seen_date_str = user_data["lastSeenDate"]
             if user_id not in forgotten_users:
-                user_Ids.append(user_id)
+                user_ids.append(user_id)
                 if user_id not in user_info_data[f"{last_key}"]:
                     if user_data["isOnline"]:
                         user_info_data[f"{last_key}"][user_id] = {
@@ -71,12 +71,14 @@ def update_user_count_periodically():
 
 @app.post("/api/update_count")
 def update_count(data: dict):
-    return users_count_history.update(data)
+    users_count_history.update(data)
+    return "Success"
 
 
 @app.post("/api/update_info")
 def update_info(data: dict):
-    return user_info_history.update(data)
+    user_info_history.update(data)
+    return "Success"
 
 
 @app.post("/api/user/forget")
@@ -97,12 +99,17 @@ def configure_report(report_name: str = Query(...)):
     for i in range(1, len(available_metrics) + 1):
         for metric_combination in combinations(available_metrics, i):
             name_report = "_".join(metric_combination)
-            cur_report = {"metrics": list(metric_combination), "users": user_Ids}
+            cur_report = {"metrics": list(metric_combination), "users": user_ids[:6]}
             template_reports[name_report] = cur_report
     if report_name not in template_reports.keys():
         return "Report not found"
     reports[report_name] = template_reports[report_name]
     return {}
+
+
+@app.get("/")
+def start_info():
+    return "Welcome"
 
 
 @app.get("/api/stats/users")
@@ -198,16 +205,29 @@ def calculate_average_time(user_id: str = Query(...), from_date: str = None, to_
     total_time = 0
     daily_time = 0
     days = []
+    start = None
+    online = False
     if from_date and to_date:
         from_cur_date = datetime.strptime(from_date, "%Y-%m-%d-%H:%M:%S")
         to_cur_date = datetime.strptime(to_date, "%Y-%m-%d-%H:%M:%S")
         for key, value in user_info_history.items():
             date = datetime.strptime(key, "%Y-%m-%d-%H:%M:%S")
-            if from_cur_date <= date <= to_cur_date and user_id in value and value[user_id]["wasUserOnline"]:
-                daily_time += 5
-            if date.day != (date - timedelta(days=1)).day:
-                days.append(daily_time)
-                daily_time = 0
+            if from_cur_date <= date <= to_cur_date:
+                if user_id in value and value[user_id]["wasUserOnline"]:
+                    total_time += 5
+                    daily_time += 5
+                    online = True
+                if start is None:
+                    start = date
+                end = date
+                if (end - start).days >= 1:
+                    days.append(daily_time)
+                    start = end
+                    daily_time = 0
+        if daily_time > 0:
+            days.append(daily_time)
+        if not online:
+            return "No info"
         daily_average = format_result(sum(days) / len(days))
         weekly_average = format_result(daily_average * 7)
         return {"dailyAverage": daily_average, "weeklyAverage": weekly_average, "total": total_time, "min": min(days),
@@ -217,9 +237,15 @@ def calculate_average_time(user_id: str = Query(...), from_date: str = None, to_
             date = datetime.strptime(key, "%Y-%m-%d-%H:%M:%S")
             if user_id in value and value[user_id]["wasUserOnline"]:
                 daily_time += 5
-            if date.day != (date - timedelta(days=1)).day:
+            if start is None:
+                start = date
+            end = date
+            if (end - start).days >= 1:
                 days.append(daily_time)
+                start = end
                 daily_time = 0
+        if daily_time > 0:
+            days.append(daily_time)
         daily_average = format_result(sum(days) / len(days))
         weekly_average = format_result(daily_average * 7)
         return {"weeklyAverage": weekly_average, "dailyAverage": daily_average}
@@ -236,18 +262,22 @@ def get_report_data(report_name: str = Query(...), from_date: str = Query(...), 
     for user_id in reports[report_name]["users"]:
         user_data = {"userId": user_id, "metrics": []}
         metrics = calculate_average_time(user_id, from_date, to_date)
-        for metric in report_metrics:
-            if metric == "dailyAverage":
-                user_data["metrics"].append({metric: metrics["dailyAverage"]})
-            elif metric == "weeklyAverage":
-                user_data["metrics"].append({metric: metrics["weeklyAverage"]})
-            elif metric == "total":
-                user_data["metrics"].append({metric: metrics["total"]})
-            elif metric == "min":
-                user_data["metrics"].append({metric: metrics["min"]})
-            elif metric == "max":
-                user_data["metrics"].append({metric: metrics["max"]})
-        result.append(user_data)
+        if metrics == "No info":
+            user_data["metrics"].append({metrics: f"User {user_id} haven't been online yet"})
+            result.append(user_data)
+        else:
+            for metric in report_metrics:
+                if metric == "dailyAverage":
+                    user_data["metrics"].append({metric: metrics["dailyAverage"]})
+                elif metric == "weeklyAverage":
+                    user_data["metrics"].append({metric: metrics["weeklyAverage"]})
+                elif metric == "total":
+                    user_data["metrics"].append({metric: metrics["total"]})
+                elif metric == "min":
+                    user_data["metrics"].append({metric: metrics["min"]})
+                elif metric == "max":
+                    user_data["metrics"].append({metric: metrics["max"]})
+            result.append(user_data)
     return result
 
 
