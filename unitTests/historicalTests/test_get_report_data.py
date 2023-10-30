@@ -13,7 +13,7 @@ class TestGetReportData(unittest.TestCase):
         from_date = "2023-01-01-10:00:00"
         to_date = "2023-01-01-20:00:00"
         result = get_report_data(report_name, from_date, to_date)
-        self.assertEqual([{"userId": "user1", "metrics": [{"dailyAverage": 5}, {"weeklyAverage": 35}]}], result)
+        self.assertEqual({"users": [{"userId": "user1", "metrics": [{"dailyAverage": 5}, {"weeklyAverage": 35}]}], "dailyAverage": 5, "weeklyAverage": 35}, result)
 
     @patch("historical_data.user_info_history", {"2023-01-01-00:00:00": {"user1": {"wasUserOnline": True, "nearestOnlineTime": "2023-01-01-15:00:00"}},
            "2023-01-01-15:00:00": {"user1": {"wasUserOnline": True, "nearestOnlineTime": None}},

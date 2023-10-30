@@ -13,6 +13,7 @@ user_ids = []
 forgotten_users = []
 template_reports = {}
 reports = {}
+stop_flag = threading.Event()
 
 
 def format_result(number):
@@ -41,7 +42,7 @@ def update_users_count_history(all_users):
 
 def update_user_count_periodically():
     print(f"Sending data at {current_time.strftime('%Y-%m-%d-%H:%M:%S')}")
-    while True:
+    while not stop_flag.is_set():
         users_data = load_user_data(last_seen_api_url)
         user_count = update_users_count_history(users_data)
         last_key = next(reversed(user_count))
@@ -72,13 +73,11 @@ def update_user_count_periodically():
 @app.post("/api/update_count")
 def update_count(data: dict):
     users_count_history.update(data)
-    return "Success"
 
 
 @app.post("/api/update_info")
 def update_info(data: dict):
     user_info_history.update(data)
-    return "Success"
 
 
 @app.post("/api/user/forget")
@@ -95,11 +94,18 @@ def forget_user(user_id: str = Query(...)):
 
 @app.post("/api/report")
 def configure_report(report_name: str = Query(...)):
+    # if index is not None:
+    #     if count < 1 or index < 1 or index + count > len(user_ids):
+    #         return "Invalid values for index or count"
+    #     users = user_ids[index - 1:index - 1 + count]
+    # else:
+    #     users = user_ids[:count]
     available_metrics = ["dailyAverage", "weeklyAverage", "total", "min", "max"]
     for i in range(1, len(available_metrics) + 1):
         for metric_combination in combinations(available_metrics, i):
             name_report = "_".join(metric_combination)
-            cur_report = {"metrics": list(metric_combination), "users": user_ids[:6]}
+            # cur_report = {"metrics": list(metric_combination), "users": users}
+            cur_report = {"metrics": list(metric_combination), "users": user_ids[:22]}
             template_reports[name_report] = cur_report
     if report_name not in template_reports.keys():
         return "Report not found"
@@ -109,7 +115,26 @@ def configure_report(report_name: str = Query(...)):
 
 @app.get("/")
 def start_info():
-    return "Welcome"
+    return "Welcome!"
+
+
+@app.get("/stop")
+def stop_thread():
+    stop_flag.set()
+    update_thread.join()
+    return "Stopped!"
+
+
+@app.get("/start")
+def start_thread():
+    global update_thread
+    if stop_flag.is_set():
+        stop_flag.clear()
+        update_thread = threading.Thread(target=update_user_count_periodically)
+        update_thread.start()
+        return "Thread started"
+    else:
+        return "Thread is already running"
 
 
 @app.get("/api/stats/users")
@@ -258,26 +283,30 @@ def get_report_data(report_name: str = Query(...), from_date: str = Query(...), 
     if datetime.strptime(from_date, "%Y-%m-%d-%H:%M:%S") > datetime.strptime(to_date, "%Y-%m-%d-%H:%M:%S"):
         return "Start date must be earlier than end date"
     report_metrics = reports[report_name]["metrics"]
-    result = []
+    metrics_data = {}
+    for metric in report_metrics:
+        metrics_data[metric] = []
+    result = {"users": []}
     for user_id in reports[report_name]["users"]:
         user_data = {"userId": user_id, "metrics": []}
         metrics = calculate_average_time(user_id, from_date, to_date)
         if metrics == "No info":
             user_data["metrics"].append({metrics: f"User {user_id} haven't been online yet"})
-            result.append(user_data)
         else:
             for metric in report_metrics:
-                if metric == "dailyAverage":
-                    user_data["metrics"].append({metric: metrics["dailyAverage"]})
-                elif metric == "weeklyAverage":
-                    user_data["metrics"].append({metric: metrics["weeklyAverage"]})
-                elif metric == "total":
-                    user_data["metrics"].append({metric: metrics["total"]})
-                elif metric == "min":
-                    user_data["metrics"].append({metric: metrics["min"]})
-                elif metric == "max":
-                    user_data["metrics"].append({metric: metrics["max"]})
-            result.append(user_data)
+                user_data["metrics"].append({metric: metrics[metric]})
+                metrics_data[metric].append(metrics[metric])
+        result["users"].append(user_data)
+    for metric, values in metrics_data.items():
+        if values:
+            if metric == "total":
+                result[metric] = sum(values)
+            elif metric == "min":
+                result[metric] = min(values)
+            elif metric == "max":
+                result[metric] = max(values)
+            elif metric in ["dailyAverage", "weeklyAverage"]:
+                result[metric] = format_result(sum(values) / len(values))
     return result
 
 

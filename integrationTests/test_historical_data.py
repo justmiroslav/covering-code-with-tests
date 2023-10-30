@@ -31,7 +31,7 @@ class HistoricalDataIntegrationTest(unittest.TestCase):
             {"willBeOnline": True, "onlineChance": 1.0},
             {"totalTime": 5},
             {"weeklyAverage": 35, "dailyAverage": 5},
-            [{"userId": "user1", "metrics": [{"report": 5}]}]
+            {"users": [{"userId": "user1", "metrics": [{"report": 5}]}], "report": 5}
         ]
 
         self.client.post("/api/update_count", json=user_count_data)
@@ -62,4 +62,4 @@ class HistoricalDataIntegrationTest(unittest.TestCase):
         self.assertEqual({}, response.json())
 
         response = self.client.get("/api/report?report_name=report&from_date=2023-10-10-10:00:00&to_date=2023-10-14-10:00:00")
-        self.assertEqual([{"userId": "user1", "metrics": [{"report": 5}]}], response.json())
+        self.assertEqual({"users": [{"userId": "user1", "metrics": [{"report": 5}]}], "report": 5}, response.json())

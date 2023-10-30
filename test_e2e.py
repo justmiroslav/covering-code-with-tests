@@ -77,4 +77,4 @@ class TestSystem(unittest.TestCase):
         self.assertEqual({}, response.json())
 
         response = self.client.get("/api/report?report_name=dailyAverage&from_date=2023-10-10-10:00:00&to_date=2023-10-14-10:00:00")
-        self.assertEqual([], response.json())
+        self.assertEqual({"users": []}, response.json())
