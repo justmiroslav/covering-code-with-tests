@@ -68,13 +68,13 @@ class TestSystem(unittest.TestCase):
         self.assertEqual({"totalTime": 5}, response.json())
 
         response = self.client.get("/api/stats/user/average?user_id=user1")
-        self.assertEqual({"weeklyAverage": 17.5, "dailyAverage": 2.5}, response.json())
+        self.assertEqual({"weeklyAverage": 35, "dailyAverage": 5}, response.json())
 
         response = self.client.post("/api/user/forget?user_id=user2")
         self.assertEqual("User data has been forgotten", response.json())
 
-        response = self.client.post(f"/api/report?report_name=dailyAverage_weeklyAverage")
+        response = self.client.post(f"/api/report?report_name=dailyAverage")
         self.assertEqual({}, response.json())
 
-        response = self.client.get("/api/report?report_name=dailyAverage_weeklyAverage&from_date=2023-10-10-10:00:00&to_date=2023-10-14-10:00:00")
+        response = self.client.get("/api/report?report_name=dailyAverage&from_date=2023-10-10-10:00:00&to_date=2023-10-14-10:00:00")
         self.assertEqual([], response.json())
