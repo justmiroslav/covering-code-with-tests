@@ -137,6 +137,11 @@ def start_thread():
         return "Thread is already running"
 
 
+@app.get("/time")
+def get_current_time():
+    return {"start_time": current_time.strftime("%Y-%m-%d-%H:%M:%S"), "next_time": "To have a valid data += 5 seconds of start_time"}
+
+
 @app.get("/api/stats/users")
 def get_user_count(date: str = Query(...)):
     for key, value in users_count_history.items():
@@ -307,6 +312,21 @@ def get_report_data(report_name: str = Query(...), from_date: str = Query(...), 
                 result[metric] = max(values)
             elif metric in ["dailyAverage", "weeklyAverage"]:
                 result[metric] = format_result(sum(values) / len(values))
+    return result
+
+
+@app.get("/api/reports")
+def get_reports_data():
+    result = []
+    if not reports:
+        return "Nothing to show"
+    for report_name, report_config in reports.items():
+        report_data = {
+            "name": report_name,
+            "metrics": report_config["metrics"],
+            "users": report_config["users"]
+        }
+        result.append(report_data)
     return result
 
 
