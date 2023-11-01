@@ -1,6 +1,7 @@
 import time
 import threading
 import re
+import random
 from itertools import combinations
 from fastapi import FastAPI, Query
 from last_seen import *
@@ -137,9 +138,9 @@ def start_thread():
         return "Thread is already running"
 
 
-@app.get("/time")
-def get_current_time():
-    return {"start_time": current_time.strftime("%Y-%m-%d-%H:%M:%S"), "next_time": "To have a valid data += 5 seconds of start_time"}
+@app.get("/test_data")
+def get_current_time_and_random_user():
+    return {"start_time": current_time.strftime("%Y-%m-%d-%H:%M:%S"), "user_id": random.choice(user_ids)}
 
 
 @app.get("/api/stats/users")
