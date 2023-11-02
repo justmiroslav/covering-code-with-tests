@@ -32,7 +32,9 @@ class HistoricalDataIntegrationTest(unittest.TestCase):
             {"totalTime": 5},
             {"weeklyAverage": 35, "dailyAverage": 5},
             {"users": [{"userId": "user1", "metrics": [{"dailyAverage": 5}, {"weeklyAverage": 35}]}], "dailyAverage": 5, "weeklyAverage": 35},
-            [{"name": "report", "metrics": ["dailyAverage", "weeklyAverage"], "users": ["user1"]}]
+            [{"name": "report", "metrics": ["dailyAverage", "weeklyAverage"], "users": ["user1"]}],
+            [{"username": "User1", "userId": "user1", "firstSeen": "2023-01-01-00:00:00"},
+             {"username": "User2", "userId": "user2", "firstSeen": "still offline"}]
         ]
 
         self.client.post("/api/update_count", json=user_count_data)
@@ -67,3 +69,7 @@ class HistoricalDataIntegrationTest(unittest.TestCase):
 
         response = self.client.get("/api/reports")
         self.assertEqual([{"name": "report", "metrics": ["dailyAverage", "weeklyAverage"], "users": ["user1"]}], response.json())
+
+        response = self.client.get("/api/users/list")
+        self.assertEqual([{"username": "User1", "userId": "user1", "firstSeen": "2023-01-01-00:00:00"},
+                          {"username": "User2", "userId": "user2", "firstSeen": "still offline"}], response.json())

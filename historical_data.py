@@ -11,6 +11,7 @@ last_updated_time = current_time
 users_count_history = {}
 user_info_history = {}
 user_ids = []
+username_dict = {}
 forgotten_users = []
 template_reports = {}
 reports = {}
@@ -54,6 +55,7 @@ def update_user_count_periodically():
             user_id = user_data["userId"]
             last_seen_date_str = user_data["lastSeenDate"]
             if user_id not in forgotten_users:
+                username_dict[user_id] = user_data["nickname"]
                 user_ids.append(user_id)
                 if user_id not in user_info_data[f"{last_key}"]:
                     if user_data["isOnline"]:
@@ -329,6 +331,30 @@ def get_reports_data():
         }
         result.append(report_data)
     return result
+
+
+@app.get("/api/users/list")
+def get_user_list():
+    result = []
+    for key, value in user_info_history.items():
+        for user_id, user_data in value.items():
+            username = username_dict[user_id]
+            first_seen = get_first_seen_date(user_id)
+            user_item = {
+                "username": username,
+                "userId": user_id,
+                "firstSeen": first_seen
+            }
+            result.append(user_item)
+    return result
+
+
+def get_first_seen_date(user_id):
+    for key, value in user_info_history.items():
+        for key_user, user_data in value.items():
+            if key_user == user_id and user_data.get("wasUserOnline"):
+                return key
+    return "still offline"
 
 
 update_thread = threading.Thread(target=update_user_count_periodically)
