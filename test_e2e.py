@@ -48,6 +48,10 @@ class TestSystem(unittest.TestCase):
         user_count_data = {"2023-10-10-10:00:00": {"usersOnline": 2}, "2023-10-15-10:00:00": {"usersOnline": 1}}
         user_info_data = {"2023-10-10-10:00:00": {"user1": {"wasUserOnline": True, "lastSeenDate": None}, "user2": {"wasUserOnline": True, "lastSeenDate": None}},
                           "2023-10-15-10:00:00": {"user1": {"wasUserOnline": False, "lastSeenDate": "2023-10-12-10:00:00", "user2": {"wasUserOnline": True, "lastSeenDate": None}}}}
+        historical_data.username_dict = {
+            "user1": "User1",
+            "user2": "User2"
+        }
 
         self.client.post("/api/update_count", json=user_count_data)
         self.client.post("/api/update_info", json=user_info_data)
@@ -81,3 +85,9 @@ class TestSystem(unittest.TestCase):
 
         response = self.client.get("/api/reports")
         self.assertEqual([{"name": "dailyAverage", "metrics": ["dailyAverage"], "users": []}], response.json())
+
+        response = self.client.get("/api/users/list")
+        expected_result = [
+            {"username": "User1", "userId": "user1", "firstSeen": "2023-10-10-10:00:00"},
+            {"username": "User1", "userId": "user1", "firstSeen": "2023-10-10-10:00:00"}]
+        self.assertEqual(expected_result, response.json())
